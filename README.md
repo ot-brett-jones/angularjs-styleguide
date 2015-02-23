@@ -1,4 +1,8 @@
-# AngularJS Style Guide
+# AngularJS Style Guide FORK
+
+This is a fork of John Papa's angularjs-styleguide. There have been modifications to fit the OneTech style. For instance, we do not require IIFE because our build system handles it for us.
+
+-------
 
 *Opinionated AngularJS style guide for teams by [@john_papa](//twitter.com/john_papa)*
 
@@ -44,7 +48,7 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
   1. [Testing](#testing)
   1. [Animations](#animations)
   1. [Comments](#comments)
-  1. [JSHint](#js-hint)
+  1. [eslint](#es-lint)
   1. [Constants](#constants)
   1. [File Templates and Snippets](#file-templates-and-snippets)
   1. [Yeoman Generator](#yeoman-generator)
@@ -113,64 +117,7 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 ### JavaScript Closures
 ###### [Style [Y010](#style-y010)]
 
-  - Wrap AngularJS components in an Immediately Invoked Function Expression (IIFE).
-
-  *Why?*: An IIFE removes variables from the global scope. This helps prevent variables and function declarations from living longer than expected in the global scope, which also helps avoid variable collisions.
-
-  *Why?*: When your code is minified and bundled into a single file for deployment to a production server, you could have collisions of variables and many global variables. An IIFE protects you against both of these by providing variable scope for each file.
-
-  ```javascript
-  /* avoid */
-  // logger.js
-  angular
-      .module('app')
-      .factory('logger', logger);
-
-  // logger function is added as a global variable
-  function logger() { }
-
-  // storage.js
-  angular
-      .module('app')
-      .factory('storage', storage);
-
-  // storage function is added as a global variable
-  function storage() { }
-  ```
-
-  ```javascript
-  /**
-   * recommended
-   *
-   * no globals are left behind
-   */
-
-  // logger.js
-  (function() {
-      'use strict';
-
-      angular
-          .module('app')
-          .factory('logger', logger);
-
-      function logger() { }
-  })();
-
-  // storage.js
-  (function() {
-      'use strict';
-
-      angular
-          .module('app')
-          .factory('storage', storage);
-
-      function storage() { }
-  })();
-  ```
-
-  - Note: For brevity only, the rest of the examples in this guide may omit the IIFE syntax.
-
-  - Note: IIFE's prevent test code from reaching private members like regular expressions or helper functions which are often good to unit test directly on their own. However you can test these through accessible members or by exposing them through their own component. For example placing helper functions, regular expressions or constants in their own factory or constant.
+*Our code base does not require this because our build system (Jake) adds IIFE automatically*
 
 **[Back to top](#table-of-contents)**
 
@@ -305,7 +252,7 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
   ```
 
   ```html
-  <!-- recommended -->
+  <!-- recommended (but see use router to define controllerAs) -->
   <div ng-controller="Customer as customer">
       {{ customer.name }}
   </div>
@@ -360,13 +307,6 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
       vm.name = {};
       vm.sendMessage = function() { };
   }
-  ```
-
-  Note: You can avoid any [jshint](http://www.jshint.com/) warnings by placing the comment below above the line of code. However it is not needed when the function is named using UpperCasing, as this convention means it is a constructor function, which is what a controller is in Angular.
-
-  ```javascript
-  /* jshint validthis: true */
-  var vm = this;
   ```
 
   Note: When creating watches in a controller using `controller as`, you can watch the `vm.*` member using the following syntax. (Create watches with caution as they add more load to the digest cycle.)
@@ -595,15 +535,15 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 
   ```javascript
   /* recommended */
-  function Order(creditService) {
+  function Order(baseService) {
       var vm = this;
       vm.checkCredit = checkCredit;
       vm.isCreditOk;
       vm.total = 0;
 
       function checkCredit() {
-         return creditService.isOrderTotalOk(vm.total)
-      .then(function(isOk) { vm.isCreditOk = isOk; })
+         return baseService.get("credit/isOrderTotalOk", vm.total)
+      .then(function(err, response) { vm.isCreditOk = isOk; })
             .catch(showServiceError);
       };
   }
@@ -883,14 +823,16 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 
 **[Back to top](#table-of-contents)**
 
-## Data Services
+## Base Service
 
 ### Separate Data Calls
 ###### [Style [Y060](#style-y060)]
 
-  - Refactor logic for making data operations and interacting with data to a factory. Make data services responsible for XHR calls, local storage, stashing in memory, or any other data operations.
+  - We use a baseService for all of our API interactions. This is a wrapper for the $http module for calling the API. Usages are simple and operate very much like services do in our C# API's (e.g. baseService.get("call", params) will issue a GET on the CallController)
 
     *Why?*: The controller's responsibility is for the presentation and gathering of information for the view. It should not care how it gets the data, just that it knows who to ask for it. Separating the data services moves the logic on how to get it to the data service, and lets the controller be simpler and more focused on the view.
+
+    *Why?*: This makes it easier for us to interact with the API and puts the base URI in one place. This also takes care of wrapping up the parameters into the right method for the right HTTP verb. 
 
     *Why?*: This makes it easier to test (mock or real) the data calls when testing a controller that uses a data service.
 
@@ -899,31 +841,20 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
   ```javascript
   /* recommended */
 
-  // dataservice factory
+  // baseService factory
   angular
       .module('app.core')
-      .factory('dataservice', dataservice);
+      .factory('baseService', baseService);
 
-  dataservice.$inject = ['$http', 'logger'];
+  function baseService($http, logger) {
+      var baseUri = "/api";
 
-  function dataservice($http, logger) {
       return {
-          getAvengers: getAvengers
+          get: get,
+          put: put,
+          post: post,
+          delete: delete
       };
-
-      function getAvengers() {
-          return $http.get('/api/maa')
-              .then(getAvengersComplete)
-              .catch(getAvengersFailed);
-
-          function getAvengersComplete(response) {
-              return response.data.results;
-          }
-
-          function getAvengersFailed(error) {
-              logger.error('XHR Failed for getAvengers.' + error.data);
-          }
-      }
   }
   ```
 
@@ -937,9 +868,7 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
       .module('app.avengers')
       .controller('Avengers', Avengers);
 
-  Avengers.$inject = ['dataservice', 'logger'];
-
-  function Avengers(dataservice, logger) {
+  function Avengers(baseService, logger) {
       var vm = this;
       vm.avengers = [];
 
@@ -952,7 +881,7 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
       }
 
       function getAvengers() {
-          return dataservice.getAvengers()
+          return baseService.get("avengers")
               .then(function(data) {
                   vm.avengers = data;
                   return vm.avengers;
@@ -1344,7 +1273,7 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 ### Route Resolve Promises
 ###### [Style [Y081](#style-y081)]
 
-  - When a controller depends on a promise to be resolved before the controller is activated, resolve those dependencies in the `$routeProvider` before the controller logic is executed. If you need to conditionally cancel a route before the controller is activated, use a route resolver.
+  - When a controller depends on a promise to be resolved before the controller is activated, resolve those dependencies in the `$routeProvider` before the controller logic is executed. If you need to conditionally cancel a route before the controller is activated, use a route resolver. This should hardly be used since most of our pages are asynchronous and don't require data to load. If the view has dropdown requirements which come from a service this would be the recommended place for them.
 
   - Use a route resolve when you want to decide to cancel the route before ever transitioning to the View.
 
@@ -1475,9 +1404,7 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 ### Manually Identify Dependencies
 ###### [Style [Y091](#style-y091)]
 
-  - Use `$inject` to manually identify your dependencies for AngularJS components.
-
-    *Why?*: This technique mirrors the technique used by [`ng-annotate`](https://github.com/olov/ng-annotate), which I recommend for automating the creation of minification safe dependencies. If `ng-annotate` detects injection has already been made, it will not duplicate it.
+  - Dependencies are automatically annotated by our build system (Jake) via ng-annotate. You are not required to add any injections via `XController.$inject` and I would advise to avoid it entirely. The annotations are resolved using the named parameters of the controller. If you have `function MyController($http) {` then ng-annotate will add the $inject statement with '$http' as a requirement.
 
     *Why?*: This safeguards your dependencies from being vulnerable to minification issues when parameters may be mangled. For example, `common` and `dataservice` may become `a` or `b` and not be found by AngularJS.
 
@@ -1510,70 +1437,15 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
         .module('app')
         .controller('Dashboard', Dashboard);
 
-    Dashboard.$inject = ['$location', '$routeParams', 'common', 'dataservice'];
-
-    function Dashboard($location, $routeParams, common, dataservice) {
+    function Dashboard($location, $routeParams, common, baseService) {
     }
     ```
 
-    Note: When your function is below a return statement the $inject may be unreachable (this may happen in a directive). You can solve this by either moving the $inject above the return statement or by using the alternate array injection syntax.
-
-    Note: [`ng-annotate 0.10.0`](https://github.com/olov/ng-annotate) introduced a feature where it moves the `$inject` to where it is reachable.
-
-    ```javascript
-    // inside a directive definition
-    function outer() {
-        return {
-            controller: DashboardPanel,
-        };
-
-        DashboardPanel.$inject = ['logger']; // Unreachable
-        function DashboardPanel(logger) {
-        }
-    }
-    ```
-
-    ```javascript
-    // inside a directive definition
-    function outer() {
-        DashboardPanel.$inject = ['logger']; // reachable
-        return {
-            controller: DashboardPanel,
-        };
-
-        function DashboardPanel(logger) {
-        }
-    }
-    ```
 
 ### Manually Identify Route Resolver Dependencies
 ###### [Style [Y092](#style-y092)]
 
-  - Use $inject to manually identify your route resolver dependencies for AngularJS components.
-
-    *Why?*: This technique breaks out the anonymous function for the route resolver, making it easier to read.
-
-    *Why?*: An `$inject` statement can easily precede the resolver to handle making any dependencies minification safe.
-
-    ```javascript
-    /* recommended */
-    function config($routeProvider) {
-        $routeProvider
-            .when('/avengers', {
-                templateUrl: 'avengers.html',
-                controller: 'Avengers',
-                controllerAs: 'vm',
-                resolve: {
-                    moviesPrepService: moviePrepService
-                }
-            });
-    }
-
-    moviePrepService.$inject = ['movieService'];
-    function moviePrepService(movieService) {
-        return movieService.getMovies();
-    }
-    ```
+  - This is not necessary either. See above.
 
 **[Back to top](#table-of-contents)**
 
@@ -1582,13 +1454,9 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 ### ng-annotate
 ###### [Style [Y100](#style-y100)]
 
-  - Use [ng-annotate](//github.com/olov/ng-annotate) for [Gulp](http://gulpjs.com) or [Grunt](http://gruntjs.com) and comment functions that need automated dependency injection using `/** @ngInject */`
+  - Our build system uses [ng-annotate](//github.com/olov/ng-annotate) and comment functions that need automated dependency injection using `/** @ngInject */`
 
     *Why?*: This safeguards your code from any dependencies that may not be using minification-safe practices.
-
-    *Why?*: [`ng-min`](https://github.com/btford/ngmin) is deprecated
-
-    >I prefer Gulp as I feel it is easier to write, to read, and to debug.
 
     The following code is not using minification safe dependencies.
 
@@ -1655,38 +1523,6 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 
     > Note: Starting from AngularJS 1.3 use the [`ngApp`](https://docs.angularjs.org/api/ng/directive/ngApp) directive's `ngStrictDi` parameter. When present the injector will be created in "strict-di" mode causing the application to fail to invoke functions which do not use explicit function annotation (these may not be minification safe). Debugging info will be logged to the console to help track down the offending code.
     `<body ng-app="APP" ng-strict-di>`
-
-### Use Gulp or Grunt for ng-annotate
-###### [Style [Y101](#style-y101)]
-
-  - Use [gulp-ng-annotate](https://www.npmjs.org/package/gulp-ng-annotate) or [grunt-ng-annotate](https://www.npmjs.org/package/grunt-ng-annotate) in an automated build task. Inject `/* @ngInject */` prior to any function that has dependencies.
-
-    *Why?*: ng-annotate will catch most dependencies, but it sometimes requires hints using the `/* @ngInject */` syntax.
-
-    The following code is an example of a gulp task using ngAnnotate
-
-    ```javascript
-    gulp.task('js', ['jshint'], function() {
-        var source = pkg.paths.js;
-        return gulp.src(source)
-            .pipe(sourcemaps.init())
-            .pipe(concat('all.min.js', {newLine: ';'}))
-            // Annotate before uglify so the code get's min'd properly.
-            .pipe(ngAnnotate({
-                // true helps add where @ngInject is not used. It infers.
-                // Doesn't work with resolve, so we must be explicit there
-                add: true
-            }))
-            .pipe(bytediff.start())
-            .pipe(uglify({mangle: true}))
-            .pipe(bytediff.stop())
-            .pipe(sourcemaps.write('./'))
-            .pipe(gulp.dest(pkg.paths.dev));
-    });
-
-    ```
-
-**[Back to top](#table-of-contents)**
 
 ## Exception Handling
 
@@ -1814,8 +1650,8 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 ### Naming Guidelines
 ###### [Style [Y120](#style-y120)]
 
-  - Use consistent names for all components following a pattern that describes the component's feature then (optionally) its type. My recommended pattern is `feature.type.js`. There are 2 names for most assets:
-    * the file name (`avengers.controller.js`)
+  - Use consistent names for all components following a pattern that describes the component's feature then (optionally) its type. My recommended pattern is `feature-type.js`. There are 2 names for most assets:
+    * the file name (`avengers-controller.js`)
     * the registered component name with Angular (`AvengersController`)
 
     *Why?*: Naming conventions help provide a consistent way to find content at a glance. Consistency within the project is vital. Consistency with a team is important. Consistency across a company provides tremendous efficiency.
@@ -1825,7 +1661,7 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 ### Feature File Names
 ###### [Style [Y121](#style-y121)]
 
-  - Use consistent names for all components following a pattern that describes the component's feature then (optionally) its type. My recommended pattern is `feature.type.js`.
+  - Use consistent names for all components following a pattern that describes the component's feature then (optionally) its type. My recommended pattern is `feature-type.js`.
 
     *Why?*: Provides a consistent way to quickly identify components.
 
@@ -1837,14 +1673,10 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
      */
 
     // Controllers
-    avengers.js
-    avengers.controller.js
-    avengersController.js
+    avengers-controller.js
 
     // Services/Factories
-    logger.js
-    logger.service.js
-    loggerService.js
+    logger-service.js
     ```
 
     ```javascript
@@ -1853,40 +1685,29 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
      */
 
     // controllers
-    avengers.controller.js
-    avengers.controller.spec.js
+    avengers-controller.js
+    avengers-controller.spec.js
 
     // services/factories
-    logger.service.js
-    logger.service.spec.js
+    logger-service.js
+    logger-service.spec.js
 
     // constants
     constants.js
 
     // module definition
-    avengers.module.js
+    avengers-module.js
 
     // routes
-    avengers.routes.js
-    avengers.routes.spec.js
+    avengers-routes.js
+    avengers-routes.spec.js
 
     // configuration
-    avengers.config.js
+    avengers-config.js
 
     // directives
-    avenger-profile.directive.js
-    avenger-profile.directive.spec.js
-    ```
-
-  Note: Another common convention is naming controller files without the word `controller` in the file name such as `avengers.js` instead of `avengers.controller.js`. All other conventions still hold using a suffix of the type. Controllers are the most common type of component so this just saves typing and is still easily identifiable. I recommend you choose 1 convention and be consistent for your team.
-
-    ```javascript
-    /**
-     * recommended
-     */
-    // Controllers
-    avengers.js
-    avengers.spec.js
+    avenger-profile-directive.js
+    avenger-profile-directive.spec.js
     ```
 
 ### Test File Names
@@ -1902,10 +1723,10 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
     /**
      * recommended
      */
-    avengers.controller.spec.js
-    logger.service.spec.js
-    avengers.routes.spec.js
-    avenger-profile.directive.spec.js
+    avengers-controller.spec.js
+    logger-service.spec.js
+    avengers-routes.spec.js
+    avenger-profile-directive.spec.js
     ```
 
 ### Controller Names
@@ -1922,7 +1743,7 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
      * recommended
      */
 
-    // avengers.controller.js
+    // avengers-controller.js
     angular
         .module
         .controller('HeroAvengers', HeroAvengers);
@@ -1941,10 +1762,10 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 
     ```javascript
     /**
-     * recommended: Option 1
+       * Avoid
      */
 
-    // avengers.controller.js
+    // avengers-controller.js
     angular
         .module
         .controller('Avengers', Avengers);
@@ -1954,10 +1775,10 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
 
     ```javascript
     /**
-     * recommended: Option 2
+       * recommended:
      */
 
-    // avengers.controller.js
+    // avengers-controller.js
     angular
         .module
         .controller('AvengersController', AvengersController);
@@ -1977,7 +1798,7 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
      * recommended
      */
 
-    // logger.service.js
+    // logger-service.js
     angular
         .module
         .factory('logger', logger);
@@ -2138,17 +1959,23 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
             calendar.directive.html
             user-profile.directive.js
             user-profile.directive.html
+            user-profile.directive.less
         layout/
             shell.html
+            shell.less
             shell.controller.js
             topnav.html
+            topnav.less
             topnav.controller.js
         people/
             attendees.html
+            attendees.less
             attendees.controller.js
             speakers.html
+            speakers.less
             speakers.controller.js
             speaker-detail.html
+            speaker-detail.less
             speaker-detail.controller.js
         services/
             data.service.js
@@ -2285,9 +2112,6 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
       .module('app')
       .config(configure);
 
-  configure.$inject =
-      ['routerHelperProvider', 'exceptionHandlerProvider', 'toastr'];
-
   function configure (routerHelperProvider, exceptionHandlerProvider, toastr) {
       exceptionHandlerProvider.configure(config.appErrorPrefix);
       configureStateHelper();
@@ -2316,8 +2140,6 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
   angular
       .module('app')
       .run(runBlock);
-
-    runBlock.$inject = ['authenticator', 'translator'];
 
     function runBlock(authenticator, translator) {
         authenticator.initialize();
@@ -2418,9 +2240,9 @@ Unit testing helps maintain clean code, as such I included some of my recommenda
 ### Code Analysis
 ###### [Style [Y195](#style-y195)]
 
-  - Run JSHint on your tests.
+  - We run eslint on all js.
 
-    *Why?*: Tests are code. JSHint can help identify code quality issues that may cause the test to work improperly.
+    *Why?*: eslint can help identify code quality issues that may cause the test to work improperly.
 
 ### Alleviate Globals for JSHint Rules on Tests
 ###### [Style [Y196](#style-y196)]
@@ -2549,80 +2371,14 @@ Unit testing helps maintain clean code, as such I included some of my recommenda
 
 **[Back to top](#table-of-contents)**
 
-## JS Hint
+## ES LINT
 
 ### Use an Options File
 ###### [Style [Y230](#style-y230)]
 
-  - Use JS Hint for linting your JavaScript and be sure to customize the JS Hint options file and include in source control. See the [JS Hint docs](http://www.jshint.com/docs/) for details on the options.
+  - We use eslint to lint all js written by OT. Any js files in the src directory are automatically linted before they are transposed. If it fails eslint then the build will fail.
 
     *Why?*: Provides a first alert prior to committing any code to source control.
-
-    *Why?*: Provides consistency across your team.
-
-    ```javascript
-    {
-        "bitwise": true,
-        "camelcase": true,
-        "curly": true,
-        "eqeqeq": true,
-        "es3": false,
-        "forin": true,
-        "freeze": true,
-        "immed": true,
-        "indent": 4,
-        "latedef": "nofunc",
-        "newcap": true,
-        "noarg": true,
-        "noempty": true,
-        "nonbsp": true,
-        "nonew": true,
-        "plusplus": false,
-        "quotmark": "single",
-        "undef": true,
-        "unused": false,
-        "strict": false,
-        "maxparams": 10,
-        "maxdepth": 5,
-        "maxstatements": 40,
-        "maxcomplexity": 8,
-        "maxlen": 120,
-
-        "asi": false,
-        "boss": false,
-        "debug": false,
-        "eqnull": true,
-        "esnext": false,
-        "evil": false,
-        "expr": false,
-        "funcscope": false,
-        "globalstrict": false,
-        "iterator": false,
-        "lastsemic": false,
-        "laxbreak": false,
-        "laxcomma": false,
-        "loopfunc": true,
-        "maxerr": false,
-        "moz": false,
-        "multistr": false,
-        "notypeof": false,
-        "proto": false,
-        "scripturl": false,
-        "shadow": false,
-        "sub": true,
-        "supernew": false,
-        "validthis": false,
-        "noyield": false,
-
-        "browser": true,
-        "node": true,
-
-        "globals": {
-            "angular": false,
-            "$": false
-        }
-    }
-    ```
 
 **[Back to top](#table-of-contents)**
 
@@ -2795,7 +2551,7 @@ Client-side routing is important for creating a navigation flow between views an
 **[Back to top](#table-of-contents)**
 
 ## Task Automation
-Use [Gulp](http://gulpjs.com) or [Grunt](http://gruntjs.com) for creating automated tasks. Gulp leans to code over configuration while Grunt leans to configuration over code. I personally prefer Gulp as I feel it is easier to read and write, but both are excellent.
+We use [Jake](http://jakejs.com/) for creating automated tasks.
 
 ###### [Style [Y400](#style-y400)]
 
@@ -2820,42 +2576,3 @@ Use [Gulp](http://gulpjs.com) or [Grunt](http://gruntjs.com) for creating automa
 ## AngularJS docs
 For anything else, API reference, check the [Angular documentation](//docs.angularjs.org/api).
 
-## Contributing
-
-Open an issue first to discuss potential changes/additions. If you have questions with the guide, feel free to leave them as issues in the repository. If you find a typo, create a pull request. The idea is to keep the content up to date and use github’s native feature to help tell the story with issues and PR’s, which are all searchable via google. Why? Because odds are if you have a question, someone else does too! You can learn more here at about how to contribute.
-
-*By contributing to this repository you are agreeing to make your content available subject to the license of this repository.*
-
-### Process
-    1. Discuss the changes in a GitHub issue.
-    2. Open a Pull Request, reference the issue, and explain the change and why it adds value.
-    3. The Pull Request will be evaluated and either merged or declined.
-
-## License
-
-_tldr; Use this guide. Attributions are appreciated._
-
-### (The MIT License)
-
-Copyright (c) 2014 [John Papa](http://johnpapa.net)
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-'Software'), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-**[Back to top](#table-of-contents)**
