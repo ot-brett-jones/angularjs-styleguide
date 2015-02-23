@@ -2244,7 +2244,7 @@ Unit testing helps maintain clean code, as such I included some of my recommenda
 
     *Why?*: eslint can help identify code quality issues that may cause the test to work improperly.
 
-### Alleviate Globals for JSHint Rules on Tests
+### Alleviate Globals for eslint Rules on Tests
 ###### [Style [Y196](#style-y196)]
 
   - Relax the rules on your test code to allow for common globals such as `describe` and `expect`.
