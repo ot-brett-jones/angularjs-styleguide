@@ -1,6 +1,7 @@
 # AngularJS Style Guide FORK
 
-This is a fork of John Papa's angularjs-styleguide. There have been modifications to fit the OneTech style. For instance, we do not require IIFE because our build system handles it for us.
+**This is a fork of John Papa's angularjs-styleguide. There have been modifications to fit the
+OneTech style. For instance, we do not require IIFE because our build system handles it for us.**
 
 -------
 
@@ -51,7 +52,6 @@ While this guide explains the *what*, *why* and *how*, I find it helpful to see 
   1. [eslint](#es-lint)
   1. [Constants](#constants)
   1. [File Templates and Snippets](#file-templates-and-snippets)
-  1. [Yeoman Generator](#yeoman-generator)
   1. [Routing](#routing)
   1. [Task Automation](#task-automation)
   1. [AngularJS Docs](#angularjs-docs)
@@ -2501,31 +2501,6 @@ Use file templates or snippets to help follow consistent styles and patterns. He
 
 **[Back to top](#table-of-contents)**
 
-## Yeoman Generator
-###### [Style [Y260](#style-y260)]
-
-You can use the [HotTowel yeoman generator](http://jpapa.me/yohottowel) to create an app that serves as a starting point for Angular that follows this style guide.
-
-1. Install generator-hottowel
-
-  ```
-  npm install -g generator-hottowel
-  ```
-
-2. Create a new folder and change directory to it
-
-  ```
-  mkdir myapp
-  cd myapp
-  ```
-
-3. Run the generator
-
-  ```
-  yo hottowel helloWorld
-  ```
-
-**[Back to top](#table-of-contents)**
 
 ## Routing
 Client-side routing is important for creating a navigation flow between views and composing views that are made of many smaller templates and directives.
